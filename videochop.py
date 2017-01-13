@@ -72,7 +72,7 @@ def compute_slices(path, seconds, padding=1):
     if head is not None:
         head, _ = intervals[-1]
         tail = subs[-1].end + padding
-        intervals.append((head, tail))
+        intervals[-1] = (head, tail)
 
     # Return intervals as seconds
     return [(int(floor(a.ordinal/1000.)), int(ceil(b.ordinal/1000.)))
