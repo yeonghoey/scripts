@@ -11,36 +11,37 @@ import sys
 import pysrt
 
 
-def main(srcdir, pattern, dstdir, seconds):
-    plan = build_plan(srcdir, pattern, dstdir, seconds)
+def main(srcpattern, dstdir, seconds):
+    plan = build_plan(srcpattern, dstdir, seconds)
     prompt_plan(plan)
 
-    for outpath_base, video_path, srt_path, slices in plan:
+    for vpath, spath, outbase, slices in plan:
         for i, (s, e) in enumerate(slices, 1):
-            dstpath_root = '{}.{:02d}'.format(outpath_base, i)
-            chop_video(video_path, dstpath_root + '.mp4', s, e)
-            chop_srt(srt_path, dstpath_root + '.srt', s, e)
+            dstroot = '{}.{:02d}'.format(outbase, i)
+            chop_video(vpath, dstroot + '.mp4', s, e)
+            chop_srt(spath, dstroot + '.srt', s, e)
 
 
-def build_plan(srcdir, pattern, dstdir, seconds):
+def build_plan(srcpattern, dstdir, seconds):
+    srcdir, pattern = os.path.split(srcpattern)
+    pattern = pattern.replace('N', '\d')
+    vpaths = detect_targets(srcdir, pattern, ['.avi', '.mp4', '.mkv'])
+    spaths = detect_targets(srcdir, pattern, ['.srt'])
     plan = []
-    video_paths = detect_targets(srcdir, pattern, ['.avi', '.mp4', '.mkv'])
-    srt_paths = detect_targets(srcdir, pattern, ['.srt'])
-    for key in video_paths:
-        if key not in srt_paths:
-            errexit('Failed to find srt for "%s"' % video_paths[key])
-        outpath_base = os.path.join(dstdir, key)
-        video_path = video_paths[key]
-        srt_path = srt_paths[key]
-        slices = compute_slices(srt_path, seconds)
-        plan.append((outpath_base, video_paths[key], srt_paths[key], slices))
-    return sorted(plan)
+    for key in vpaths:
+        if key not in spaths:
+            errexit('Failed to find srt for "%s"' % vpaths[key])
+        vpath = vpaths[key]
+        spath = spaths[key]
+        outbase = os.path.join(dstdir, key)
+        slices = compute_slices(spath, seconds)
+        plan.append((vpath, spath, outbase, slices))
+    return sorted(plan, key=lambda t: t[2])
 
 
 def detect_targets(srcdir, pattern, exts):
     paths = [os.path.join(srcdir, name) for name in os.listdir(srcdir)]
     paths = [p for p in paths if os.path.isfile(p)]
-    pattern = pattern.replace('N', '\d')
     results = {}
     for path in paths:
         _, ext = os.path.splitext(path)
@@ -76,10 +77,10 @@ def compute_slices(path, seconds, padding=1):
 
 
 def prompt_plan(plan):
-    for dstroot, video_path, srt_path, slices in plan:
-        _, video_name = os.path.split(video_path)
-        _, srt_name = os.path.split(srt_path)
-        print('{} into {} slices'.format(dstroot, len(slices)))
+    for vpath, spath, outbase, slices in plan:
+        _, video_name = os.path.split(vpath)
+        _, srt_name = os.path.split(spath)
+        print('{} into {} slices'.format(outbase, len(slices)))
         print('- {}'.format(video_name))
         print('- {}'.format(srt_name))
     
@@ -113,9 +114,9 @@ def errexit(message):
 
 if __name__ == '__main__':
     params = sys.argv[1:]
-    if len(params) != 4:
-        errexit('Usage: videochop <srdir> <pattern> <dstdir> <seconds>')
+    if len(params) != 3:
+        errexit('Usage: videochop <srcpattern> <pattern> <dstdir> <seconds>')
 
-    srcdir, pattern, dstdir, seconds = params[:4]
+    srcpattern, dstdir, seconds = params[:3]
     seconds = int(seconds)
-    main(srcdir, pattern, dstdir, seconds)
+    main(srcpattern, dstdir, seconds)
