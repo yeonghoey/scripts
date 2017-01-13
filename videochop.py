@@ -2,6 +2,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 from math import ceil, floor
+import multiprocessing
 import os
 from pprint import pprint
 import re
@@ -15,15 +16,15 @@ def main(srcpattern, dstdir, seconds):
     plan = build_plan(srcpattern, dstdir, seconds)
     prompt_plan(plan)
 
+    pool = multiprocessing.Pool(processes=8)
     for vpath, spath, outbase, slices in plan:
-        processes = []
         for i, (s, e) in enumerate(slices, 1):
             dstroot = '{}.{:02d}'.format(outbase, i)
             chop_srt(spath, dstroot + '.srt', s, e)
-            p = chop_video(vpath, dstroot + '.mp4', s, e)
-            processes.append(p)
-        for p in processes:
-            p.wait()
+            pool.apply_async(
+                chop_video, (vpath, dstroot + '.mp4', s, e))
+    pool.close()
+    pool.join()
 
 
 def build_plan(srcpattern, dstdir, seconds):
@@ -99,7 +100,7 @@ def chop_video(video_path, outpath, start, end):
               '-vcodec mpeg4 -qscale:v 16 '\
               '-acodec libmp3lame '\
               '-ss "{start}" -to "{end}" "{outpath}"'.format(**locals())
-    return subprocess.Popen(command, shell=True)
+    return subprocess.call(command, shell=True)
 
 
 def chop_srt(srt_path, outpath, start, end):
