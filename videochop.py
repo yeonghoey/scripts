@@ -16,13 +16,11 @@ def main(srcpattern, dstdir, seconds):
     plan = build_plan(srcpattern, dstdir, seconds)
     prompt_plan(plan)
 
-    pool = multiprocessing.Pool(processes=8)
+    pool = multiprocessing.Pool(processes=4)
     for vpath, spath, outbase, slices in plan:
-        for i, (s, e) in enumerate(slices, 1):
+        for i, (start, end) in enumerate(slices, 1):
             dstroot = '{}.{:02d}'.format(outbase, i)
-            chop_srt(spath, dstroot + '.srt', s, e)
-            pool.apply_async(
-                chop_video, (vpath, dstroot + '.mp4', s, e))
+            pool.apply_async(chop, (vpath, spath, dstroot, start, end))
     pool.close()
     pool.join()
 
@@ -94,17 +92,22 @@ def prompt_plan(plan):
         errexit('Abort')
 
 
-def chop_video(video_path, outpath, start, end):
+def chop(vpath, spath, dstroot, start, end):
+    chop_video(vpath, dstroot + '.mp4', start, end)
+    chop_srt(spath, dstroot + '.srt', start, end)
+
+
+def chop_video(vpath, outpath, start, end):
     command = 'ffmpeg -y '\
-              '-i "{video_path}" '\
+              '-i "{vpath}" '\
               '-vcodec mpeg4 -qscale:v 16 '\
               '-acodec libmp3lame '\
               '-ss "{start}" -to "{end}" "{outpath}"'.format(**locals())
     return subprocess.call(command, shell=True)
 
 
-def chop_srt(srt_path, outpath, start, end):
-    subs = pysrt.open(srt_path)
+def chop_srt(spath, outpath, start, end):
+    subs = pysrt.open(spath)
     parts = subs.slice(ends_after={'seconds': start},
                        starts_before={'seconds': end})
     parts.shift(seconds=-start)
