@@ -10,6 +10,7 @@ template = '''
 
 
 def targets(srcdir):
+    srcdir = os.path.abspath(srcdir)
     _, base = os.path.split(srcdir)
 
     for name in os.listdir(srcdir):
